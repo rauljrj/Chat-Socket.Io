@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+ 
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/css/bootstrap.min.css" crossorigin="anonymous">
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/js/bootstrap.min.js" crossorigin="anonymous"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="chat.js"></script>
+  <title>Chat-Ra</title>
+    <style type="text/css">
+        * {
+  box-sizing: border-box;
+}
+
+html {
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, input {
+  font-family:
+    "HelveticaNeue-Light",
+    "Helvetica Neue Light",
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    "Lucida Grande",
+    sans-serif;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+ul {
+  list-style: none;
+  word-wrap: break-word;
+}
+
+.pages {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.page {
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+
+
+
+.login.page {
+  background-color: #DEB887;
+}
+
+.login.page .form {
+  height: 100px;
+  margin-top: -100px;
+  position: absolute;
+
+  text-align: center;
+  top: 50%;
+  width: 100%;
+}
+
+.login.page .form .usernameInput {
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid #000;
+  outline: none;
+  padding-bottom: 15px;
+  text-align: center;
+  width: 400px;
+}
+
+.login.page .title {
+  font-size: 200%;
+}
+
+.login.page .usernameInput {
+  font-size: 200%;
+  letter-spacing: 3px;
+}
+
+.login.page .title, .login.page .usernameInput {
+  color: #000;
+  font-weight: 100;
+}
+
+
+.chat.page {
+  display: none;
+}
+
+
+.messages {
+  font-size: 150%;
+}
+
+.inputMessage {
+  font-size: 100%;
+}
+
+.log {
+  color: gray;
+  font-size: 70%;
+  margin: 5px;
+  text-align: center;
+}
+
+
+.chatArea {
+  height: 100%;
+  padding-bottom: 60px;
+}
+
+.messages {
+  height: 100%;
+  margin: 0;
+  overflow-y: scroll;
+  padding: 10px 20px 10px 20px;
+}
+
+.message.typing .messageBody {
+  color: gray;
+}
+
+.username {
+  font-weight: 700;
+  overflow: hidden;
+  padding-right: 15px;
+  text-align: right;
+}
+
+
+.inputMessage {
+  border: 10px solid #000;
+  bottom: 0;
+  height: 60px;
+  left: 0;
+  outline: none;
+  padding-left: 10px;
+  position:relative;
+  right: 0;
+  width: 60%;
+}
+    </style>
+  <script>
+      $(function() {
+  
+  var FADE_TIME = 150;
+  var TYPING_TIMER_LENGTH = 400;
+  var COLORS = [
+    '#e21400', '#91580f', '#f8a700', '#f78b00',
+    '#58dc00', '#287b00', '#a8f07a', '#4ae8c4',
+    '#3b88eb', '#3824aa', '#a700ff', '#d300e7'
+  ];
+
+  var $window = $(window);
+  var $usernameInput = $('.usernameInput');
+  var $messages = $('.messages');
+  var $inputMessage = $('.inputMessage');
+  /*var homer = $('#homer');
+  var goku = $('#goku');
+  var luffy = $('#luffy');
+  var pikachu = $('#pikachu');*/
+
+  var $loginPage = $('.login.page');
+  var $chatPage = $('.chat.page');
+  
+  //var imagenes=[homer, luffy, goku, pikachu];
+  var username;
+  var connected = false;
+  var typing = false;
+  var lastTypingTime;
+  var $currentInput = $usernameInput.focus();
+  var audio =$('audio');
+  var socket = io();
+         
+  function cargarCanciones() {
+      $.ajax({
+          url: '/canciones'
+      }).done(function(canciones){
+          var lista = $('#lista-canciones');
+          lista.empty();
+          canciones.forEach(function(cancion){
+              var nuevoElemento = $('<a class="cancion">' + cancion.nombre + '</a>');
+              nuevoElemento
+                  .on('click', cancion, play)
+                  .appendTo(lista);
+          })
+      }).fail(function(){
+          alert('no pude cargar las canciones');
+      })
+  }
+
+ function play(evento) {
+    audio[0].pause();
+    audio.attr('src', '/canciones/' + evento.data.nombre);
+    audio[0].play();
+     
+       
+     }      
+cargarCanciones();
+          
+  const addParticipantsMessage = (data) => {
+    var message = '';
+    if (data.numUsers === 1) {
+      message += "hay 1 participante";
+    } else {
+      message += "hay " + data.numUsers + " participantes en el chat";
+    }
+    log(message);
+  }
+
+  function setProfile() {
+    username = cleanInput($usernameInput.val().trim());
+    
+    if (username) {
+      $loginPage.fadeOut();
+      $chatPage.show();
+      $loginPage.off('click');
+      $currentInput = $inputMessage.focus();
+      socket.emit('add user', username);
+    }
+  }
+  const sendMessage = () => {
+    var message = $inputMessage.val();
+    message = cleanInput(message);
+    if (message && connected) {
+      $inputMessage.val('');
+      addChatMessage({
+        homer: homer,
+        username: username,
+        message: message
+      });
+      socket.emit('new message', message);
+    }
+  }
+    const log = (message, options) => {
+    var $el = $('<li>').addClass('log').text(message);
+    addMessageElement($el, options);
+  }
+  const addChatMessage = (data, options) => {
+    var $typingMessages = getTypingMessages(data);
+    options = options || {};
+    if ($typingMessages.length !== 0) {
+      options.fade = false;
+      $typingMessages.remove();
+    }
+
+    var $usernameDiv = $('<span class="username"/>')
+      .text(data.username)
+      .css('color', getUsernameColor(data.username));
+    var $messageBodyDiv = $('<span class="messageBody">')
+      .text(data.message);
+
+    var typingClass = data.typing ? 'typing' : '';
+    var $messageDiv = $('<li class="message"/>')
+      .data('username', data.username)
+      .addClass(typingClass)
+      .append($usernameDiv, $messageBodyDiv);
+
+    addMessageElement($messageDiv, options);
+  }
+
+
+  const removeChatTyping = (data) => {
+    getTypingMessages(data).fadeOut(() => {
+      $(this).remove();
+    });
+  }
+  const addMessageElement = (el, options) => {
+    var $el = $(el);
+
+    if (!options) {
+      options = {};
+    }
+    if (typeof options.fade === 'undefined') {
+      options.fade = true;
+    }
+    if (typeof options.prepend === 'undefined') {
+      options.prepend = false;
+    }
+
+    if (options.fade) {
+      $el.hide().fadeIn(FADE_TIME);
+    }
+    if (options.prepend) {
+      $messages.prepend($el);
+    } else {
+      $messages.append($el);
+    }
+    $messages[0].scrollTop = $messages[0].scrollHeight;
+  }
+
+
+  const cleanInput = (input) => {
+    return $('<div/>').text(input).html();
+  }
+
+  const updateTyping = () => {
+    if (connected) {
+      if (!typing) {
+        typing = true;
+        socket.emit('typing');
+      }
+      lastTypingTime = (new Date()).getTime();
+
+      setTimeout(() => {
+        var typingTimer = (new Date()).getTime();
+        var timeDiff = typingTimer - lastTypingTime;
+        if (timeDiff >= TYPING_TIMER_LENGTH && typing) {
+          socket.emit('stop typing');
+          typing = false;
+        }
+      }, TYPING_TIMER_LENGTH);
+    }
+  }
+
+  const getTypingMessages = (data) => {
+    return $('.typing.message').filter(i => {
+      return $(this).data('username') === data.username;
+    });
+  }
+
+  
+  const getUsernameColor = (username) => {
+    var hash = 7;
+    for (var i = 0; i < username.length; i++) {
+       hash = username.charCodeAt(i) + (hash << 5) - hash;
+    }
+    var index = Math.abs(hash % COLORS.length);
+    return COLORS[index];
+  }
+
+
+
+  $window.keydown(event => {
+
+    if (!(event.ctrlKey || event.metaKey || event.altKey)) {
+      $currentInput.focus();
+    }
+
+    if (event.which === 13) {
+      if (username) {
+        sendMessage();
+        socket.emit('stop typing');
+        typing = false;
+      } else {
+        setProfile();
+      }
+    }
+  });
+
+  $inputMessage.on('input', () => {
+    updateTyping();
+  });
+
+  $loginPage.click(() => {
+    $currentInput.focus();
+  });
+
+  $inputMessage.click(() => {
+    $inputMessage.focus();
+  });
+
+  socket.on('login', (data) => {
+    connected = true;
+    var message = "bienvenido a Chat-Ra ";
+    log(message, {
+      prepend: true
+    });
+    addParticipantsMessage(data);
+  });
+
+  socket.on('new message', (data) => {
+    addChatMessage(data);
+  });
+
+  socket.on('user joined', (data) => {
+    log(data.username + ' se unió');
+    addParticipantsMessage(data);
+  });
+
+  socket.on('user left', (data) => {
+    log(data.username + ' se fue');
+    addParticipantsMessage(data);
+  });
+
+
+  socket.on('disconnect', () => {
+    log('Te has desconectado');
+  });
+
+  socket.on('reconnect', () => {
+    log('Has sido reconectado');
+    if (username) {
+      socket.emit('add user', username);
+    }
+  });
+
+  socket.on('reconnect_error', () => {
+    log('Intento de conexión fallido');
+  });
+
+});
+    </script>
+</head>
+<body>
+  <ul class="pages">
+    <li class="chat page">
+      <div class="chatArea">
+        <ul class="messages"></ul>
+      </div>
+      <input class="inputMessage" placeholder="escribe algo"/>
+      <div class="dropdown" style="float:right;">
+          <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            canciones
+          </button>
+          <div class="dropdown-menu" id="lista-canciones" aria-labelledby="dropdownMenuButton">
+          <a class="cancion" href="#">Action</a><br>
+         <a class="cancion" href="#">Another action</a>
+         <a class="cancion" href="#">Another action</a>
+      </div>
+    </div>
+          <div class="contenedor-derecho" style="float:right;">
+              <audio class="audio" controls></audio>
+          </div>
+          <form class="upload-form" action="/canciones" method="post" enctype="multipart/form-data" style="float:right;">
+              subir cancion:
+              <input type="file" name="cancion" />
+              <input type="submit" value="subir"/>
+        </form>
+
+    </li>
+    <li class="login page">
+     <h1 style="text-align:center;">Bienvenido a Chat-Ra</h1>
+      <div class="form">
+      <!--<div class="container">
+            <div class="row">
+               <div class="col-12">
+                <h6>Elige tu Avatar</h6>
+                </div>
+            </div>
+        </div>
+       <div class="container-fluid">
+            <div class="row">
+               <div class="col-12">
+                    <button click="setProfile()"><img id="homer" src="images/homer.png" style="width: 100px; height: 100px;"></button>
+                    <button click="setProfile()"><img id="pikachu" src="images/pikachu.png" style="width: 100px; height: 100px;"></button>
+                    <button click="setProfile()"><img id="luffy" src="images/luffy.png" style="width: 100px; height: 100px;"></button>
+                    <button click="setProfile()"><img id="goku" src="images/goku.png" style="width: 100px; height: 100px;"></button>
+                </div>
+            </div>
+        </div><br><br>-->
+        <h3 class="title">Nickname</h3>
+        <input class="usernameInput" type="text" maxlength="14" />        
+      </div>
+    </li>
+  </ul>
+
+  
+</body>
+</html>
