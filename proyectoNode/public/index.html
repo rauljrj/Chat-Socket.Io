@@ -95,9 +95,12 @@ ul {
   font-weight: 100;
 }
 
+.juego { 
+        }
 
 .chat.page {
   display: none;
+  width: 50%;
 }
 
 
@@ -118,9 +121,16 @@ ul {
 
 
 .chatArea {
-  height: 100%;
+  height: 70%;
   padding-bottom: 60px;
+  width: 70%;
+  float: left;
+  display: grid;
 }
+.juego {
+   float: right;
+    display: grid;
+        }
 
 .messages {
   height: 100%;
@@ -150,7 +160,7 @@ ul {
   padding-left: 10px;
   position:relative;
   right: 0;
-  width: 60%;
+  width: 70%;
 }
     </style>
   <script>
@@ -175,7 +185,19 @@ ul {
 
   var $loginPage = $('.login.page');
   var $chatPage = $('.chat.page');
-  
+  var juego = false;
+  var turnos = false;
+  var palabras = ["tornado", "deporte", "amorfidad", "vida", "fundacion", "plantilla"];
+  var intentos = 5;
+  var casilla ="";
+
+  var bLetra = $('#bLetra');
+  var inputPalabra = ('#inputPalabra');
+  var bPalabra = ('#bPalabra');
+  var tmp = [];
+  var itn = $('#intentos').text("tienes: " + intentos + " intentos");
+  var pAleatoria = Math.floor(Math.random()*(palabras.length));
+  var palabra = palabras[pAleatoria];
   //var imagenes=[homer, luffy, goku, pikachu];
   var username;
   var connected = false;
@@ -211,15 +233,82 @@ ul {
      }      
 cargarCanciones();
           
+function partida(){
+    
+    juego = true;
+    for (var i = 0; i < palabra.length; i++) {
+        if (palabra.length == i){
+            casilla+="_";
+        }
+        else{
+            casilla+="_ ";
+        }
+        $("#incognita").text(casilla);
+        }
+    tmp = casilla.split(" ");
+
+    $("#bLetra").click(function(){
+    intentos--;
+    $('#intentos').text("tienes: " + intentos + " intentos");
+     if(intentos>0){
+		        var letra = $("#letra").val().toLowerCase();
+		    	for (var i = 0; i < tmp.length; i++) {
+		    		if(palabra[i] == letra){
+		    			tmp[i] = letra;
+		    		}
+                    else{
+		    			if(tmp[i]!="_"){
+		    				
+		    			}
+                        else{
+		    				tmp[i] = "_ ";
+		    			}
+                    }
+                $("#incognita").text("");
+		    	$("#incognita").html(tmp);
+		    	$("#letra").val("");
+                if (tmp.join('') == palabra) {
+                    $('#ganaste').text('Enhorabuena has ganado');
+                }
+                    
+                }
+     } else {
+             $('#perdiste').text('Lo siento has perdido');
+         }
+     
+ });
+    $('#bPalabra').click(function(){
+        intentos--;
+        $('#intentos').text("tienes: " + intentos + " intentos");
+        var inputPalabra = $('#inputPalabra').val().toLowerCase();
+        if (inputPalabra != null) {
+            if (inputPalabra === palabra) {
+               $('#ganaste').text('Enhorabuena has ganado');
+
+            }
+            else {
+               $('#perdiste').text('Lo siento has perdido'); 
+            }
+        }
+    });
+}
+          
   const addParticipantsMessage = (data) => {
     var message = '';
     if (data.numUsers === 1) {
       message += "hay 1 participante";
-    } else {
+    }
+    else if (data.numUsers >= 2) {
+        partida();
+        message += "la partida comienza";
+    }
+    else {
       message += "hay " + data.numUsers + " participantes en el chat";
     }
     log(message);
   }
+  
+
 
   function setProfile() {
     username = cleanInput($usernameInput.val().trim());
@@ -228,7 +317,7 @@ cargarCanciones();
       $loginPage.fadeOut();
       $chatPage.show();
       $loginPage.off('click');
-      $currentInput = $inputMessage.focus();
+      //$currentInput = $inputMessage.focus();
       socket.emit('add user', username);
     }
   }
@@ -417,11 +506,24 @@ cargarCanciones();
 <body>
   <ul class="pages">
     <li class="chat page">
-      <div class="chatArea">
+             <div class="juego">
+             
+            <h1>Ahorcado</h1>
+            <p id="incognita" style="font-size: 40px;"></p>
+            <p id="intentos"></p>       
+            <input id="letra" placeholder="letra" style="width:30%;"/>
+            <input id="bLetra" type="button" value="Letra" style="float:right; width: 30%;"/>
+            <input id = "inputPalabra" placeholder="escribe la palabra"/>
+            <input id="bPalabra" type="button" value="palabra"/>
+            <h1 id = "ganaste"></h1>
+            <h1 id = "perdiste"></h1>
+        </div>
+      <div class="chatArea" style="float:left; display:block;">
         <ul class="messages"></ul>
       </div>
       <input class="inputMessage" placeholder="escribe algo"/>
-      <div class="dropdown" style="float:right;">
+        
+      <div class="dropdown">
           <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
             canciones
           </button>
@@ -431,15 +533,14 @@ cargarCanciones();
          <a class="cancion" href="#">Another action</a>
       </div>
     </div>
-          <div class="contenedor-derecho" style="float:right;">
+          <div class="contenedor-derecho">
               <audio class="audio" controls></audio>
           </div>
-          <form class="upload-form" action="/canciones" method="post" enctype="multipart/form-data" style="float:right;">
+          <form class="upload-form" action="/canciones" method="post" enctype="multipart/form-data">
               subir cancion:
               <input type="file" name="cancion" />
               <input type="submit" value="subir"/>
         </form>
-
     </li>
     <li class="login page">
      <h1 style="text-align:center;">Bienvenido a Chat-Ra</h1>
